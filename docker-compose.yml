@@ -1,0 +1,52 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OnionGrade AI — one-command startup
+#
+#   docker compose up --build
+#
+# Backend : http://localhost:8000  (FastAPI + Gemini Vision)
+# Frontend: http://localhost:8501  (Streamlit dashboard)
+#
+# Set GOOGLE_API_KEY in backend/.env to enable live Gemini mode.
+# Leave it empty to run fully offline (OpenCV detection, template report).
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      # Allow the Streamlit container to call the backend.
+      ALLOWED_ORIGINS: "http://localhost:8501,http://frontend:8501"
+      # Model names — override here if needed.
+      GEMINI_VISION_MODEL: "gemini-2.0-flash-lite"
+      GEMINI_MODEL: "gemini-2.0-flash-lite"
+      # Timeout & retry config for Gemini API.
+      GEMINI_TIMEOUT_SECONDS: "45"
+      GEMINI_MAX_RETRIES: "2"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      BACKEND_URL: "http://backend:8000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
